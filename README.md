@@ -10,7 +10,7 @@ go on browser: http://localhost:8086 > follow the onboarding process > last step
 -- My org is admin_org 
 -- bucket is admin_bucket (fyi)
 
-influx config create --config-name DADDY --host-url http://localhost:8086 --org admin_org --token $(cat $SECRET_DIR/influxdb_token) --active
+influx config create --config-name DADDY --host-url http://localhost:8086 --org admin_org --token $(cat $SECRETS_DIR/influxdb_token) --active --configs-path $INFLUX_HOME/data/influxdbv2/influx.conf
 
 At this point, you can already use the influx-cli 
 
