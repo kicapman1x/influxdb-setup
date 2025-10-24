@@ -1,4 +1,4 @@
-SET UP INSTRUCTIONS
+===SET UP INSTRUCTIONS===
 
 wget https://download.influxdata.com/influxdb/releases/v2.7.12/influxdb2-2.7.12_linux_amd64.tar.gz
 tar xvfz influxdb2-2.7.12_linux_amd64.tar.gz
@@ -41,3 +41,7 @@ select * from cpu where host='node2'
 select * from cpu where time >= now() - 5m
 select * from cpu where time >= now() - 1m
 ^ because its in epoch time, so we measure now - 1m, that will give the epoch timestamp a min ago. Then if the epoch is greater than, it means its added after 1 min ago. If its added 5 min ago, it'll be smaller (time marches forward lol)
+
+===TELEGRAF===
+wget https://dl.influxdata.com/telegraf/releases/telegraf-1.36.3_linux_amd64.tar.gz
+tar xf telegraf-1.36.3_linux_amd64.tar.gz
