@@ -1,0 +1,237 @@
+Storage engine of DB is 2 storage engines in 1.
+
+1) TDSB - timeseries, collections values + timestamps in time sorted orders - do compressions
+2) Inverted index
+normally we think about search databases. In our case, we match TS metadata with timeseries that we have.
+
+Everything is indexed by time, and the series that it is.
+Within the database, we have concept of shards, and it is blocks of time. For example, we can have 1 shard for each day.
+It's not like elastic, where 1 shard is for 1 index that lives in 1 node. It can be compared to Prometheus, blocks.
+Makes it efficient to drop old data if we want.
+
+Data is: Measurement, Tags, Field, Timestamp. Timestamp can be stored at nanosecond scale. if u big fark trading company u might need.
+Series is the time ordered collection measurement, tag set and actual field la.
+Its a collection of tuples lol.
+
+Example:
+temperature, device=dev1, building=b1#internal -> 1
+1 -> (1443782126,80)
+temperature, device=dev1, building=b1#external -> 2
+2 -> (1443782126,18)
+
+1 way to arrange k/v store:
+Key : Value
+(1, 144...): 80
+...
+..
+<if new value just insert here>
+Key space have to be ordered though, so can do range scan
+Leveldb has this ^
+
+BUT. influxdb has NEW storage engine!
+
+InfluxDB -
+firstly used:
+LSM Trees - optimized for write throughput, do compression.
+However, deletes are expensive. If we do delete, we write tombstone record to disk > then later when query, resolve key in database with tombstone to return result > then compaction process rewrite tables to remove records
+tldr - to remove record need to write records.
+
+We have sharding, we create new leveldb database for new shard of time. However, if have large range, can run out of file descripters.
+
+secondly tried to use:
+mmap COW (copy on write) B+ Trees - write throughput sucks. Initially, p good, but db increase size, it gets worse. IO ops will spike.
+With bolt, it size memory map files - when it overgrows size file, it doubles file size, so it freezes entire db.
+No compression as well. EEEK.
+
+We need something to support high throughput,
+supports high read performance,
+better compression,
+write doesn't block reads, vice versa (rather read stale data),
+write multiple ranges simultaneously (lagged data collection),
+hot backups,
+many dbs open in single process, without crashing
+
+
+In v1:
+In memory - load on boot.
+Underlying TSM files - db builds in memory index. (memory constrained)
+If high cardinality, then boot time will be uber slow.
+
+in V2:
+Combo of on disk and in memory.
+Key problem is - alot of use cases where ts is ephemeral. If we want to track container metrics, then we want a containerID in a tag, its ephemeral.
+We want something that will work for ephemeral series.
+New data comes in > ts meta data (the key itself) > check in memory index and on disk index (have already mah?)
+-- if have (dont do anything yet)
+> if dont have, write to WAL > write to in memory index > then WAL flush out to disk periodically (on disk indices) > compacted to on disk index
+
+
+Hence, influxdb created Time Structured Merge Tree:
+Components:
+WAL
+In mem cache
+Index files (read only)
+
+TS data > write to WAL > in mem index (can be queried - avail for response le) > periodic flushes to TSM files (ss tables, files that r indexed - files are also MMAP-ed so can access easily, and let OS handle caching for us)
+
+What does WAL look like (log entry):
+[This is the TSI WAL, just for indexing - hence will only have the metadata]
+FLAG - deletion or insertion mah
+Measurement name
+Tag k/v pairs
+Checksum
+
+There is a TSM WAL as well!
+TSM WAL logs actual time series data
+its both written to the same file: /home/daddy/apps/influxdb/influxdb2-2.7.12/data/influxdbv2/engine/wal/a210798f8e6efb77/autogen/1/xxx.wal
+
+MMAP file > look at last 4 bytes > look at where index is > can find where data is in the blocks
+-- virtual mem mapping for quick access. OS manages it, not like prometheus, not as active role as Prometheus.
+
+TSM file:
+Header:
+-- Magic 4 bytes: what kind of file
+-- Version
+Blocks:
+-- CRC
+-- Data (data is compressed for a given series - new series, new block)
+----COMPRESSED BLOCKS (by default 1000 value, ts pairs into 1 block. If a request comes in, 1000 gets decoded)
+----Type: int,float,bool,string (type of field)
+----TS
+----Values
+-----compression is based on precision and deltas
+-----TS: best case: if second precision, we use run length encoding
+-----TS: ok case: simple8b compression (timestamp not fixed intervals)
+-----TS: worst case: raw value, raw timestamp
+-----Float value: Double delta compression
+-----bool value: bits
+-----int value: double delta, zip-zag compression
+-----String value: Snappy
+Index:
+-- Key len, Key itself (measurement, tagset, field), Number of values in file, min time, max time
+Footer:
+-- where start of index is
+
+
+(TSI) Index File looks like:
+What series exist in the index (series block)
+-Series Key
+-- We dont want to have to read all series keys into mem at once, so by default we write out 65k series keys at a time, these are written in sorted order. As we are compacting index files, we can do it as a streaming file. We can read multiple index files, write the 65k series and more and more and more. We dont need to have more than 65k series key in memory to get it out to disk. // So once the hash index returns and check to series key, we have a series ID, wherein it will compare to the TSM (data file.)
+-Hash Index
+-- If we have a series key, and we hash it to a bucket
+---[76, 234, 129, 352]
+---^ is hash table, at each elements, are locations in file (byte offsets)
+---lets say we have series key: cpu,host=serverA,region=west#idle and this is hashed -> and this maps to bucket01 -> 01 element is 234 -> jump to that spot in the file -> validate by seeing if the series key length is there (instead of tracing, we have actually the length of the series key at the start) -> then start to look for it (do we have the key in the file)
+--- use robin hood hashing (really good for read only hashing)
+<repeat>
+...
+-Index Entries
+-HLL Sketches
+-- Cardinality estimation - use HyperLogLog++
+Trailer
+What tags exist (Tags block)
+What measurements exists (measurement block)
+Offsets (different location of the blocks)
+
+
+Updating values:
+Can update - not optimized though.
+Any value in db is keyed off of measurement, tagset, field, ts - only 1 value in series key and ts. We elimate older dupes, when compaction runs, it throws out old and keeps new.
+Deletes - write tombstones > at query time, resolve tombstone with data read from in memory index > compaction rewrite tsm file and remove deleted data
+
+Compaction:
+Combine multiple TSM file to 1 TSM file. Put as many series into same file. Quick scan of data. Multiple levels of compactions.
+TSM files are time ordered. We have shards, shards will generally get cold for writes. We will try to do a full compaction to old shards.
+
+How does indexing work:
+Example Query:
+select percentile(90, value) from cpu
+where time > now() - 12h and "region" = 'west'
+group by time(10m), host
+
+^90th percentile value from cpu measurement for the past 12 hours, only for western region, 10 min buckets, and series for every host
+
+How to map metadata (measurement name: CPU, tag: host, region) to underlying series so that we can do computation and return an output?
+Answer: Use inverted index
+
+For instance:
+
+see ALL possible values -
+measurements to fields:
+cpu -> [idle]
+tags to values:
+host -> [A,B]
+region -> [west]
+
+From the given metadata, we can have a list of series (idle is the field so the value is % idle i guess):
+cpu,host=A,region=west#idle -> 1
+cpu,host=B,region=west#idle -> 2
+1 and 2 is the ID, for example.
+
+Posting table/list (each measurement, and each key value pair for tag for what series ID):
+cpu -> [1,2]
+host=A -> [1]
+host=B -> [2]
+region=west -> [1,2]
+
+===QUERY===
+ok so can I say the following: query entered > measurement + tags key val + fields hashed > comapred to hash index > go to series key section > series ID obtained > then we see the time range in the query > from the time range, we know which shard file to check > check those shard file in TSM > check for ID in there > return the value data // SIMPLIFIED. is this correct?
+
+Query Process Simplified:
+
+Query Entered:
+
+A query is received, for example:
+SELECT * FROM cpu WHERE host='serverA' AND region='west' AND time > now() - 1h
+
+The query includes measurement (cpu), tags (host='serverA', region='west'), field(s) (if specified), and time range.
+
+Series Key Construction:
+The measurement and tags are combined into a series key. For example:
+cpu,host=serverA,region=west
+
+This series key is the identifier of the time series in the database.
+
+Hashing the Series Key:
+The series key (e.g., cpu,host=serverA,region=west) is hashed to create a unique identifier.
+
+Comparing to the Hash Index:
+The hashed series key is looked up in the hash index within the TSI index.
+This lookup reveals the series key in the index and also provides a series ID.
+
+Getting the Series ID:
+The series ID is a unique identifier for the time series that corresponds to the series key (measurement + tagset).
+The series ID allows InfluxDB to link the metadata (measurement, tags) to the data itself.
+
+Checking the Time Range:
+The time range from the query is extracted.
+Based on this time range, InfluxDB determines which shard(s) (data file for a specific time range) to check. Shards are time-based and often correspond to days, hours, or other time intervals.
+
+Locating the Relevant Shard:
+InfluxDB looks at the shard(s) that are relevant for the queried time range.
+The shard corresponds to a TSM file (or multiple files if compaction has occurred).
+
+Checking the TSM Files:
+InfluxDB accesses the TSM files for the relevant shard(s).
+The series ID is used to locate the correct data block within the TSM files. This is done by checking the index within the TSM file that maps series ID to its data block location.
+
+Returning the Data:
+InfluxDB decodes the data block (timestamps and field values) from the TSM file.
+The data is returned to the user as the result of the query.
+
+BOLT AND SQLITE
+The .bolt and .sqlite files are not for time-series data, but rather for meta data that supports the time-series data in the system.
+.bolt: Used for schema, retention policies, and other meta-data (mostly in v1.x and some v2.x).
+.sqlite: Used for multi-tenancy, users, and task scheduling (mainly in v2.x).
+
+Meta Data Lookup (via .bolt/.sqlite):
+First, InfluxDB checks the meta data stored in the .bolt or .sqlite file to understand:
+What measurements, tags, and fields exist in the database.
+Which retention policies and shard groupings are applied to the data.
+User authentication and permissions (for v2.x).
+This step ensures that InfluxDB can validate what data exists, confirm the measurement and tag names, check the relevant time range, and see if the user has permission to query that data.
+For example:
+The .bolt file (or .sqlite in v2.x) stores the schema for measurements and tags.
+The .sqlite file might also store user authentication information (in v2.x).
+
+^ So right, it GOES to BOLT AND SQLITE FIRST!
