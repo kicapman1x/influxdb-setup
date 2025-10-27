@@ -45,3 +45,13 @@ select * from cpu where time >= now() - 1m
 ===TELEGRAF===
 wget https://dl.influxdata.com/telegraf/releases/telegraf-1.36.3_linux_amd64.tar.gz
 tar xf telegraf-1.36.3_linux_amd64.tar.gz
+
+===GRAFANA===
+wget https://dl.grafana.com/grafana/release/12.2.1/grafana_12.2.1_18655849634_linux_amd64.tar.gz
+tar -zxvf grafana_12.2.1_18655849634_linux_amd64.tar.gz
+
+EG. for querying: 
+from(bucket: "admin_bucket")
+    |> range(start: -1h)
+    |> filter(fn: (r) => r._measurement == "cpu")
+    |> filter(fn: (r) => r._field == "usage_idle")
