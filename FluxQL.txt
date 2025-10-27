@@ -1,0 +1,97 @@
+Flux basics
+*Functions* 
+Flux creates functions as building blocks. 
+*Block*
+Each block is a step of a pipeline. Each pipeline has data structures called tables. 
+*Table*
+It is NOT simply a kv store. Each table has a name for the column, as well as a type. 
+For eg.
+Table A 
+_time | _value | location
+10:30 | 5      | "LAX"
+10:45 | 15     | "LAX"
+
+Table B
+_time | _value | location
+10:30 | 10.0   | "SFO"
+
+These 2 tables have 3 correspondingly same column names. However table A _value data type is int, but b is float. 
+Additionally, each table has group key; set of columns, where each value in column is the same. (for example, if the data is from same "host" then the column for _host all is 'host1')
+
+Writing query:
+1. where is the data coming from? 
+from (bucket:"telemetry") // getting data using 'from' function, from our bucket called 'telemetry'
+2. figure out what data we want from our data source. data from last week? all data from specific tag? 
+    |> range (start: -15m) // get data from last 15 minutes using 'range' function
+    |> filter (fn: (r) => r._measurement=="rpm") // filter data using 'filter' function, pass function that checks to see if measurement is 'rpm'
+3. maybe we want to transform it? lets aggregate it. 
+    |> aggregateWindow(every:1m, fn:max)
+4. final results set lo. we can put in graph, but we can also put in another bucket
+    |> to(bucket:"telemetry-downsample")
+
+Flux Data structures
+======================
+It represents data pipeline, within it its a stream of tables (collection of 0, 1 or mini tables)
+Flux generates a single stream of tables, grouped into logical sets. All tables in a stream of tables are structured by a group key: a list of columns for which all rows in any given table has same value for those column. 
+
+When you query from influxdb, it returns data group by SERIES:
+common measurement, common tagset, common fields.
+
+In group key: we have measurement column, tag set, field key. 
+["_m", "tag1", "tag2" "_f"] - g key 
+
+For every unique combo of above ^ we will get a separate table. 
+
+So lets say, you want to regroup, you also can. 
+Lets say u want mean by tag2. And theres like 3 permeatations in total. 
+So what will happen is actually you will have 3 means! which isnt what u want!
+
+You need to change group key! You use group function. 
+
+ |> group(columns: ["tag2"])
+
+^ so you actually remove the other columns! Then its a huge table, then u can perform ur aggregate function lor.
+
+You can aggregate on time-based windows too, basically its just to redo tables lor.
+
+================================
+
+Flux Functions
+==================================
+Functional programming language - approach to programming // compose complex scripts using smaller functions.
+
+eg.
+add = (x,y) => x + y 
+
+toInt = (tables=<-) => tables |> map(...)
+: single parameter with a default value, if we call function, we dont have to specify default value.
+In this case, it is the pipe receive operator. So it has anything that is received by the pipe forward operator.
+
+Table is the data input by pipe forward. Table is then piped into map, which then converts to int.
+There is about 500+ functions. Just read documentation/source code. 
+
+from (bucket:"metrics") //bucket 
+    |> range (start: -1h)
+    |> filter (fn: (r)=> r._field="temp") // by column value 
+    |> toInt() // convert all values in stream of tables to int 
+    |> map (fn: (r) => ({
+        r with _value: add(
+            x: r._value,
+            y:5,
+            )
+        })
+    ) 
+// map iterates all rows and either updates or rewrites. so this one adds 5 lor, the custom add functions.
+
+u see ah the pipe is impt. We filtering it so that the input for the map is smaller.
+
+You can actually define custom function in that operation and call it!
+==================================
+
+Flux Pivots 
+
+================================
+
+Flux Joins
+
+=================================
