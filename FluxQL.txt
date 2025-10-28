@@ -89,9 +89,61 @@ You can actually define custom function in that operation and call it!
 ==================================
 
 Flux Pivots 
+To align 2 or more fields into rows based on time, so can operate based on those fields.
 
+Lets say you do whatever and you have this:
+_time | _field | _value
+10:30 | temp   | 21.9
+10.31 | temp   | 20.6
+==================================
+10:30 | dew    | 20.9
+10.31 | dew    | 20.8
+...
+
+You want it to be: 
+
+_time | temp | dew 
+...
+
+What do u do? 
+
+input 
+    |> pivot ( // use pivot function
+        rowKey: ["_time"], // for every unique value on this time column, get one output row
+        columnKey: ["_field"], // for one unique value in columnKey column, get one additional column
+        valueColumn: "value" // where the value of columnKey is from
+    ) 
+
+//then can use map to operate on this lor 
+
+// if schema is same, use pivot, dont need to use join
 ================================
 
 Flux Joins
+1. combine 2 different dataset w diff schema
+2. diff data sources 
 
+metrics table
+
+sensorID | _field | _value 
+a148     | temp   | 23.2
+b259     | temp   | 21.9
+
+
+assets table 
+
+sensorID | status 
+a148     | ok 
+b259     | ok
+
+JOINED 
+
+sensorID | _field | _value | status
+a148     | temp   | 23.2   | ok
+...
+
+there is a common column that is needed. 
+lol only inner joins supported T_T
+
+Dont join based on time, because its nano sensitive, try to reduce precision if you wanna join. 
 =================================
