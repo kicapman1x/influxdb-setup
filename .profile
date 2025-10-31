@@ -15,5 +15,8 @@ alias stopinfdb='kill -15 $(pgrep influxd)'
 alias influx='$INFLUX_HOME/usr/bin/influx'
 alias starttg='nohup $TELEGRAF_HOME/usr/bin/telegraf --config $TELEGRAF_HOME/etc/telegraf/telegraf.conf > $INFLUX_HOME/logs/telegraf_nohup.out &'
 alias stoptg='kill -15 $(pgrep telegraf)'
-alias startgrf='nohup $GRF_HOME/bin/grafana-server --config $GRF_HOME/conf/grafana.ini > $GRF_HOME/log/grf.out &'
+function startgrf() {
+    export LDAP_BIND_PW="$(grep admin_password $SECRETS_DIR/ldap_cred | cut -d"=" -f2)"
+    nohup $GRF_HOME/bin/grafana-server --config $GRF_HOME/conf/grafana.ini > $GRF_HOME/log/grf.out &
+}
 alias stopgrf='kill -15 $(pgrep grafana)'
