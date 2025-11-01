@@ -11,6 +11,7 @@ export INFLUX_CONFIGS_PATH=$INFLUX_HOME/data/influxdbv2/influx.conf
 export GRF_CONFIGS_PATH=$GRF_HOME/conf/grafana.ini
 
 alias startinfdb='nohup $INFLUX_HOME/usr/bin/influxd --tls-cert=$CERTS_DIR/han.gg.crt --tls-key=$CERTS_DIR/han.gg.key --sqlite-path=$INFLUX_HOME/data/influxdbv2/influxd.sqlite --bolt-path=$INFLUX_HOME/data/influxdbv2/influxd.bolt --engine-path=$INFLUX_HOME/data/influxdbv2/engine --http-bind-address=influx.han.gg:8086 > $INFLUX_HOME/logs/influxd.log &'
+#ORDER OF FLAGS MATTER!
 alias stopinfdb='kill -15 $(pgrep influxd)'
 alias influx='$INFLUX_HOME/usr/bin/influx'
 alias starttg='nohup $TELEGRAF_HOME/usr/bin/telegraf --config $TELEGRAF_HOME/etc/telegraf/telegraf.conf > $INFLUX_HOME/logs/telegraf_nohup.out &'
