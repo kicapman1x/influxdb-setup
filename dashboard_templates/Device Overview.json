@@ -62,7 +62,6 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": null,
   "links": [],
   "panels": [
     {
@@ -254,7 +253,7 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB-ADMIN-BUCKET}"
           },
-          "query": "bypass =\n  from(bucket: \"admin_bucket\")\n    |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n    |> filter(fn: (r) =>\n      r._measurement == \"device_status\" and\n      r._field == \"bypass\" and\n      r._value == true\n    )\n    |> last()\n    |> group()\n    |> count()\n    |> map(fn: (r) => ({ r with join_key: \"all\" }))\n\ntotal =\n  from(bucket: \"admin_bucket\")\n    |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n    |> filter(fn: (r) =>\n      r._measurement == \"device_status\" and\n      r._field == \"bypass\"\n    )\n    |> last()\n    |> group()\n    |> count()\n    |> map(fn: (r) => ({ r with join_key: \"all\" }))\n\njoin(\n  tables: {bypass: bypass, total: total},\n  on: [\"join_key\"]\n)\n|> map(fn: (r) => ({\n  _value: float(v: r._value_bypass) / float(v: r._value_total) * 100.0,\n  _measurement: \"bypass_percentage\"\n}))",
+          "query": "bypass =\n  from(bucket: \"admin_bucket\")\n    |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n    |> filter(fn: (r) =>\n      r._measurement == \"device_status\" and\n      r._field == \"bypass\" and\n      r._value == \"1\"\n    )\n    |> last()\n    |> group()\n    |> count()\n    |> map(fn: (r) => ({ r with join_key: \"all\" }))\n\ntotal =\n  from(bucket: \"admin_bucket\")\n    |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n    |> filter(fn: (r) =>\n      r._measurement == \"device_status\" and\n      r._field == \"bypass\"\n    )\n    |> last()\n    |> group()\n    |> count()\n    |> map(fn: (r) => ({ r with join_key: \"all\" }))\n\njoin(\n  tables: {bypass: bypass, total: total},\n  on: [\"join_key\"]\n)\n|> map(fn: (r) => ({\n  _value: float(v: r._value_bypass) / float(v: r._value_total) * 100.0,\n  _measurement: \"bypass_percentage\"\n}))",
           "refId": "A"
         }
       ],
@@ -306,6 +305,7 @@
             }
           },
           "mappings": [],
+          "max": 1,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -345,7 +345,7 @@
       "pluginVersion": "12.2.1",
       "targets": [
         {
-          "query": "from(bucket: \"admin_bucket\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"device_status\" and\n    r._field == \"bypass\"\n  )",
+          "query": "from(bucket: \"admin_bucket\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"device_status\" and\n    r._field == \"bypass\"\n  )\n  |> map(fn: (r) => ({\n      r with\n      _value:\n        if r._value == \"1\" then 1\n        else if r._value == \"0\" then 0\n        else 0\n  }))",
           "refId": "A",
           "datasource": {
             "type": "influxdb",
@@ -395,6 +395,7 @@
   "timezone": "browser",
   "title": "Device Overview",
   "uid": "davh29s",
-  "version": 11,
-  "weekStart": ""
+  "version": 15,
+  "weekStart": "",
+  "id": null
 }
