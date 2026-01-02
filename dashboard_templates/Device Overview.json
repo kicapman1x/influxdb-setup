@@ -65,6 +65,19 @@
   "links": [],
   "panels": [
     {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 9,
+      "panels": [],
+      "title": "CheckSysEnabled",
+      "type": "row"
+    },
+    {
       "datasource": {
         "type": "influxdb",
         "uid": "${DS_INFLUXDB-ADMIN-BUCKET}"
@@ -128,9 +141,9 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 0
+        "y": 1
       },
-      "id": 3,
+      "id": 6,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -155,11 +168,12 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB-ADMIN-BUCKET}"
           },
-          "query": "from(bucket: \"admin_bucket\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"device_status\" and\n    r._field == \"bypass\"\n  )\n  |> last()\n  |> group()\n  |> count()\n  |> map(fn: (r) => ({\n      _value: float(v: r._value) / float(v: ${total_dev}) * 100.0,\n      _measurement: \"bypass_percentage\"\n  }))",
+          "query": "from(bucket: \"admin_bucket\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"device_status\" and\n    r._field == \"CheckSystemEnabled\"\n  )\n  |> group(columns: [\"deviceId\"])\n  |> last()\n  |> group()\n  |> count()\n  |> map(fn: (r) => ({\n      _value: float(v: r._value) / float(v: ${total_dev}) * 100.0,\n      _measurement: \"bypass_percentage\"\n  }))",
           "refId": "A"
         }
       ],
-      "title": "Avail %",
+      "title": "[Avail] CheckSysEnabled %",
+      "transparent": true,
       "type": "stat"
     },
     {
@@ -226,9 +240,9 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 0
+        "y": 1
       },
-      "id": 1,
+      "id": 11,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -253,11 +267,12 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB-ADMIN-BUCKET}"
           },
-          "query": "bypass =\n  from(bucket: \"admin_bucket\")\n    |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n    |> filter(fn: (r) =>\n      r._measurement == \"device_status\" and\n      r._field == \"bypass\" and\n      r._value == \"1\"\n    )\n    |> last()\n    |> group()\n    |> count()\n    |> map(fn: (r) => ({ r with join_key: \"all\" }))\n\ntotal =\n  from(bucket: \"admin_bucket\")\n    |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n    |> filter(fn: (r) =>\n      r._measurement == \"device_status\" and\n      r._field == \"bypass\"\n    )\n    |> last()\n    |> group()\n    |> count()\n    |> map(fn: (r) => ({ r with join_key: \"all\" }))\n\njoin(\n  tables: {bypass: bypass, total: total},\n  on: [\"join_key\"]\n)\n|> map(fn: (r) => ({\n  _value: float(v: r._value_bypass) / float(v: r._value_total) * 100.0,\n  _measurement: \"bypass_percentage\"\n}))",
+          "query": "checksys =\n  from(bucket: \"admin_bucket\")\n    |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n    |> filter(fn: (r) =>\n      r._measurement == \"device_status\" and\n      r._field == \"CheckSystemEnabled\" and\n      r._value == \"1\"\n    )\n    |> group(columns: [\"deviceId\"])\n    |> last()\n    |> group()\n    |> count()\n    |> map(fn: (r) => ({ r with join_key: \"all\" }))\n\ntotal =\n  from(bucket: \"admin_bucket\")\n    |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n    |> filter(fn: (r) =>\n      r._measurement == \"device_status\" and\n      r._field == \"CheckSystemEnabled\"\n    )\n    |> group(columns: [\"deviceId\"])\n    |> last()\n    |> group()\n    |> count()\n    |> map(fn: (r) => ({ r with join_key: \"all\" }))\n\njoin(\n  tables: {checksys: checksys, total: total},\n  on: [\"join_key\"]\n)\n|> map(fn: (r) => ({\n  _value: float(v: r._value_checksys) / float(v: r._value_total) * 100.0,\n  _measurement: \"checksys_percentage\"\n}))",
           "refId": "A"
         }
       ],
-      "title": "Bypass %",
+      "title": "CheckSysEnabled %",
+      "transparent": true,
       "type": "stat"
     },
     {
@@ -288,6 +303,9 @@
             },
             "insertNulls": false,
             "lineInterpolation": "linear",
+            "lineStyle": {
+              "fill": "solid"
+            },
             "lineWidth": 1,
             "pointSize": 5,
             "scaleDistribution": {
@@ -326,7 +344,318 @@
         "h": 18,
         "w": 24,
         "x": 0,
-        "y": 8
+        "y": 9
+      },
+      "id": 12,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.2.1",
+      "targets": [
+        {
+          "query": "from(bucket: \"admin_bucket\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"device_status\" and\n    r._field == \"CheckSystemEnabled\"\n  )\n  |> map(fn: (r) => ({\n      r with\n      _value:\n        if r._value == \"1\" then 1\n        else if r._value == \"0\" then 0\n        else 0\n  }))",
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DS_INFLUXDB-ADMIN-BUCKET}"
+          }
+        }
+      ],
+      "title": "CheckSysEnabled Status by Device",
+      "transparent": true,
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 27
+      },
+      "id": 5,
+      "panels": [],
+      "title": "SiloBypass",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${DS_INFLUXDB-ADMIN-BUCKET}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "options": {
+                "100": {
+                  "color": "dark-green",
+                  "index": 0
+                }
+              },
+              "type": "value"
+            },
+            {
+              "options": {
+                "from": 0,
+                "result": {
+                  "color": "dark-red",
+                  "index": 1
+                },
+                "to": 99
+              },
+              "type": "range"
+            },
+            {
+              "options": {
+                "match": "null",
+                "result": {
+                  "color": "dark-red",
+                  "index": 2,
+                  "text": "NULL"
+                }
+              },
+              "type": "special"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 28
+      },
+      "id": 10,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.2.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DS_INFLUXDB-ADMIN-BUCKET}"
+          },
+          "query": "from(bucket: \"admin_bucket\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"device_status\" and\n    r._field == \"SiloBypass\"\n  )\n  |> group(columns: [\"deviceId\"])\n  |> last()\n  |> group()\n  |> count()\n  |> map(fn: (r) => ({\n      _value: float(v: r._value) / float(v: ${total_dev}) * 100.0,\n      _measurement: \"bypass_percentage\"\n  }))",
+          "refId": "A"
+        }
+      ],
+      "title": "[Avail] SiloBypass %",
+      "transparent": true,
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${DS_INFLUXDB-ADMIN-BUCKET}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "options": {
+                "100": {
+                  "color": "dark-green",
+                  "index": 0
+                }
+              },
+              "type": "value"
+            },
+            {
+              "options": {
+                "from": 0,
+                "result": {
+                  "color": "dark-red",
+                  "index": 1
+                },
+                "to": 99
+              },
+              "type": "range"
+            },
+            {
+              "options": {
+                "match": "null",
+                "result": {
+                  "color": "dark-red",
+                  "index": 2,
+                  "text": "NULL"
+                }
+              },
+              "type": "special"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 28
+      },
+      "id": 7,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.2.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DS_INFLUXDB-ADMIN-BUCKET}"
+          },
+          "query": "bypass =\n  from(bucket: \"admin_bucket\")\n    |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n    |> filter(fn: (r) =>\n      r._measurement == \"device_status\" and\n      r._field == \"SiloBypass\" and\n      r._value == \"1\"\n    )\n    |> group(columns: [\"deviceId\"])\n    |> last()\n    |> group()\n    |> count()\n    |> map(fn: (r) => ({ r with join_key: \"all\" }))\n\ntotal =\n  from(bucket: \"admin_bucket\")\n    |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n    |> filter(fn: (r) =>\n      r._measurement == \"device_status\" and\n      r._field == \"SiloBypass\"\n    )\n    |> group(columns: [\"deviceId\"])\n    |> last()\n    |> group()\n    |> count()\n    |> map(fn: (r) => ({ r with join_key: \"all\" }))\n\njoin(\n  tables: {bypass: bypass, total: total},\n  on: [\"join_key\"]\n)\n|> map(fn: (r) => ({\n  _value: float(v: r._value_bypass) / float(v: r._value_total) * 100.0,\n  _measurement: \"bypass_percentage\"\n}))",
+          "refId": "A"
+        }
+      ],
+      "title": "SiloBypass %",
+      "transparent": true,
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${DS_INFLUXDB-ADMIN-BUCKET}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineStyle": {
+              "fill": "solid"
+            },
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 18,
+        "w": 24,
+        "x": 0,
+        "y": 36
       },
       "id": 2,
       "options": {
@@ -345,7 +674,7 @@
       "pluginVersion": "12.2.1",
       "targets": [
         {
-          "query": "from(bucket: \"admin_bucket\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"device_status\" and\n    r._field == \"bypass\"\n  )\n  |> map(fn: (r) => ({\n      r with\n      _value:\n        if r._value == \"1\" then 1\n        else if r._value == \"0\" then 0\n        else 0\n  }))",
+          "query": "from(bucket: \"admin_bucket\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"device_status\" and\n    r._field == \"SiloBypass\"\n  )\n  |> map(fn: (r) => ({\n      r with\n      _value:\n        if r._value == \"1\" then 1\n        else if r._value == \"0\" then 0\n        else 0\n  }))",
           "refId": "A",
           "datasource": {
             "type": "influxdb",
@@ -353,7 +682,319 @@
           }
         }
       ],
-      "title": "Bypass Status by Device",
+      "title": "SiloBypass Status by Device",
+      "transparent": true,
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 54
+      },
+      "id": 4,
+      "panels": [],
+      "title": "All Bypass Flight",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${DS_INFLUXDB-ADMIN-BUCKET}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "options": {
+                "100": {
+                  "color": "dark-green",
+                  "index": 0
+                }
+              },
+              "type": "value"
+            },
+            {
+              "options": {
+                "from": 0,
+                "result": {
+                  "color": "dark-red",
+                  "index": 1
+                },
+                "to": 99
+              },
+              "type": "range"
+            },
+            {
+              "options": {
+                "match": "null",
+                "result": {
+                  "color": "dark-red",
+                  "index": 2,
+                  "text": "NULL"
+                }
+              },
+              "type": "special"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 55
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.2.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DS_INFLUXDB-ADMIN-BUCKET}"
+          },
+          "query": "from(bucket: \"admin_bucket\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"device_status\" and\n    r._field == \"AllBypassFlight\"\n  )\n  |> group(columns: [\"deviceId\"])\n  |> last()\n  |> group()\n  |> count()\n  |> map(fn: (r) => ({\n      _value: float(v: r._value) / float(v: ${total_dev}) * 100.0,\n      _measurement: \"bypass_percentage\"\n  }))",
+          "refId": "A"
+        }
+      ],
+      "title": "[Avail] AllBypassFlight %",
+      "transparent": true,
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${DS_INFLUXDB-ADMIN-BUCKET}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "options": {
+                "100": {
+                  "color": "dark-green",
+                  "index": 0
+                }
+              },
+              "type": "value"
+            },
+            {
+              "options": {
+                "from": 0,
+                "result": {
+                  "color": "dark-red",
+                  "index": 1
+                },
+                "to": 99
+              },
+              "type": "range"
+            },
+            {
+              "options": {
+                "match": "null",
+                "result": {
+                  "color": "dark-red",
+                  "index": 2,
+                  "text": "NULL"
+                }
+              },
+              "type": "special"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 55
+      },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.2.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DS_INFLUXDB-ADMIN-BUCKET}"
+          },
+          "query": "bypass =\n  from(bucket: \"admin_bucket\")\n    |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n    |> filter(fn: (r) =>\n      r._measurement == \"device_status\" and\n      r._field == \"AllBypassFlight\" and\n      r._value == \"1\"\n    )\n    |> group(columns: [\"deviceId\"])\n    |> last()\n    |> group()\n    |> count()\n    |> map(fn: (r) => ({ r with join_key: \"all\" }))\n\ntotal =\n  from(bucket: \"admin_bucket\")\n    |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n    |> filter(fn: (r) =>\n      r._measurement == \"device_status\" and\n      r._field == \"AllBypassFlight\"\n    )\n    |> group(columns: [\"deviceId\"])\n    |> last()\n    |> group()\n    |> count()\n    |> map(fn: (r) => ({ r with join_key: \"all\" }))\n\njoin(\n  tables: {bypass: bypass, total: total},\n  on: [\"join_key\"]\n)\n|> map(fn: (r) => ({\n  _value: float(v: r._value_bypass) / float(v: r._value_total) * 100.0,\n  _measurement: \"bypass_percentage\"\n}))",
+          "refId": "A"
+        }
+      ],
+      "title": "AllBypassFlight %",
+      "transparent": true,
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${DS_INFLUXDB-ADMIN-BUCKET}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineStyle": {
+              "fill": "solid"
+            },
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 18,
+        "w": 24,
+        "x": 0,
+        "y": 63
+      },
+      "id": 8,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.2.1",
+      "targets": [
+        {
+          "query": "from(bucket: \"admin_bucket\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"device_status\" and\n    r._field == \"AllBypassFlight\"\n  )\n  |> map(fn: (r) => ({\n      r with\n      _value:\n        if r._value == \"1\" then 1\n        else if r._value == \"0\" then 0\n        else 0\n  }))",
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DS_INFLUXDB-ADMIN-BUCKET}"
+          }
+        }
+      ],
+      "title": "AllBypassFlights Status by Device",
+      "transparent": true,
       "type": "timeseries"
     }
   ],
@@ -395,7 +1036,7 @@
   "timezone": "browser",
   "title": "Device Overview",
   "uid": "davh29s",
-  "version": 15,
+  "version": 33,
   "weekStart": "",
   "id": null
 }
